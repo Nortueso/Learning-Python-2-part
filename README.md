@@ -1,1 +1,1 @@
-# Learning Python 2 part
+№1 "Telegram bot that show time"

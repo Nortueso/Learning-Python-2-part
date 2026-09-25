@@ -10,7 +10,7 @@ import time
 import requests
 from dotenv import load_dotenv
 load_dotenv()
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.background  import BackgroundScheduler
 
 
 @bot.message_handler(commands=["start"])
@@ -29,10 +29,10 @@ def  get_text_message(message):
     elif text == "поставить будильник":
     # Создаем inline-кнопки под сообщением для выбора времени
         inline_markup = telebot.types.InlineKeyboardMarkup()
-        btn_10s = telebot.types.InlineKeyboardButton("Через 10 сек", callback_data="alarm_10")
-        btn_1m = telebot.types.InlineKeyboardButton("Через 1 мин", callback_data="alarm_60")
+        btn_10s = telebot.types.InlineKeyboardButton("After 10 sec", callback_data="alarm_10")
+        btn_1m = telebot.types.InlineKeyboardButton("After 1 min", callback_data="alarm_60")
         inline_markup.add(btn_10s, btn_1m)
-        bot.send_message(chat_id, "Через какое время запустить будильник?", reply_markup=inline_markup)
+        bot.send_message(chat_id, "After what time turn on alarm?", reply_markup=inline_markup)
     
     else:
         bot.send_message(message.from_user.id, "I can show only time, print 'time'")
@@ -56,9 +56,6 @@ def callback_alarm(call):
     # Обновляем текст кнопки в Telegram, подтверждая установку
     bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id, 
                                             text=f"✅ Будильник успешно установлен на {seconds} секунд!")
-
-
-
 
 # reminder
 scheduler = BackgroundScheduler()
