@@ -1,15 +1,21 @@
 #1st----------> libs/modules 
+
 #---------- import
 import aiogram
 import asyncio
 import sqlite3
 import logging
 import pytz
+import aiohttp
+
 #---------- from ... import ...
+
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
 
 #1fn----------> libs/modules 
 
@@ -25,9 +31,12 @@ logging.basicConfig(level = logging.INFO)
 
 #3st----------> bot settings  
 
-TOKEN="8592926270:AAF8ZmA7A1BfKQnqWpVAqTGDZ_rQOW_aU38"
+TOKEN="8592926270:AAHwHWyVQfzCGWBihckLVA_FQk0yYrnzWxM"
+
+WEATHER_API_KEY = "d74d6240e29fba0b7aa9165d90d31ed9"
 
 bot = Bot(token=TOKEN)
+
 
 dp = Dispatcher()
 #3fn----------> bot setting
@@ -37,7 +46,6 @@ dp = Dispatcher()
 #3.1st--------> Data base work (SQLite)
 
 DB_NAME = "users_settings.db"
-
 def init_db():
     """Создает таблицу пользователей, если её еще нет."""
     with sqlite3.connect(DB_NAME) as conn:
@@ -71,6 +79,8 @@ def update_user_timezone(user_id: int, timezone: str):
 
 #3.1fn--------> Data base work (SQLite)
 
+
+
 #3.2st--------> Keyboards
 
 def get_main_keyboard():
@@ -102,8 +112,8 @@ def get_tz_keyboard():
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer(
-        "Привет! Я умею показывать точное время.\n"
-        "Используй команду /time, чтобы узнать время, или нажми на кнопку ниже для настройки.",
+        "Hello! I can show you correct time.\n"
+        "Use command /time, for show time , or press button right down for settings.",
         reply_markup=get_main_keyboard()
     )
 
@@ -119,9 +129,9 @@ async def cmd_time(message: types.Message):
     
     # 3. Отвечаем пользователю
     await message.answer(
-        f"📍 Ваш часовой пояс: {user_tz_str}\n"
-        f"📅 Дата: {current_date}\n"
-        f"🕒 Время: {current_time}",
+        f"📍 Your time position: {user_tz_str}\n"
+        f"📅 Date: {current_date}\n"
+        f"🕒 Time: {current_time}",
         reply_markup=get_main_keyboard()
     )
 
@@ -164,6 +174,7 @@ async def cmd_start(message: types.Message):
 #4fn----------> command /start 
 
 
+
 #5st----------> command /time
 
 @dp.message(Command("time"))
@@ -172,7 +183,71 @@ async def cmd_time(message: types.Message):
     current_time = datetime.now().strftime("%H:%M:%S")
     await message.answer(f"time: {current_time}")
 
-#5st----------> command /time
+#5fn----------> command /time
+
+
+
+#6st----------> OpenWeatherAPI
+
+async def get_weather(city_input: str) -> str:
+    # 1. Сначала используем встроенное геокодирование OpenWeatherMap для поиска города
+    geo_url = f"http://openweathermap.org{city_input}&limit=1&appid={WEATHER_API_KEY}"
+    
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(geo_url) as geo_resp:
+                if geo_resp.status == 200:
+                    geo_data = await geo_resp.json()
+                    if not geo_data:
+                        return "❌ Город не найден. Убедитесь, что название введено правильно."
+                    
+                    # OpenWeatherMap сам исправил опечатку и нашел правильный город и координаты!
+                    correct_name = geo_data[0]['local_names'].get('ru', geo_data[0]['name'])
+                    lat = geo_data[0]['lat']
+                    lon = geo_data[0]['lon']
+                    
+                    # 2. Теперь запрашиваем погоду по точным координатам
+                    weather_url = f"https://openweathermap.org{lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric&lang=ru"
+                    
+                    async with session.get(weather_url) as w_resp:
+                        if w_resp.status == 200:
+                            data = await w_resp.json()
+                            # ... (дальше ваш стандартный код вывода погоды, используя correct_name)
+                            return f"🌤 Погода в городе **{correct_name}**:\n• Температура: {data['main']['temp']}°C..."
+        except Exception as e:
+            logging.error(f"Ошибка OpenWeather Geo: {e}")
+    return "⚠️ Ошибка при запросе погоды."
+
+
+#6fn----------> OpenWeatherAPI
+
+
+
+#7st---------> Geo Error Fixing
+
+from geopy.geocoders import Nominatim
+
+async def fix_city_name(city_input: str) -> str | None:
+    # Создаем объект геокодера (обязательно укажите любой user_agent)
+    geolocator = Nominatim(user_agent="my_telegram_bot")
+    
+    # Запрос выполняется в отдельном потоке, так как библиотека geopy синхронная
+    loop = asyncio.get_event_loop()
+    try:
+        location = await loop.run_in_executor(
+            None, lambda: geolocator.geocode(city_input, language="ru")
+        )
+        if location:
+            # Возвращает строку вроде "Москва, Центральный федеральный округ, Россия"
+            # Разбиваем по запятой и берем только первое слово (название города)
+            clean_name = location.address.split(",")[0]
+            return clean_name
+    except Exception as e:
+        logging.error(f"Ошибка Geopy: {e}")
+    return None
+
+
+#7fn---------> Geo Error Fixing
 
 
 
